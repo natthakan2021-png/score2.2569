@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามคะแนน วิชาเคมี 4 (ม.5/1 - ม.5/3)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse for parsing CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        navy: {
+                            50: '#f0f4f9',
+                            100: '#d9e2ec',
+                            500: '#1e3a8a',
+                            600: '#1e3a8a',
+                            700: '#1d3557',
+                            800: '#0f172a',
+                            900: '#0b132b',
+                        },
+                        orange: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            700: '#c2410c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Prompt', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .sticky-col { position: sticky; left: 0; background-color: inherit; z-index: 10; }
+        .sticky-col-2 { position: sticky; left: 60px; background-color: inherit; z-index: 10; }
+        .sticky-col-3 { position: sticky; left: 150px; background-color: inherit; z-index: 10; }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .pulse-live { animation: pulse-ring 2s infinite ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col custom-scrollbar">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gradient-to-r from-navy-900 via-navy-700 to-navy-900 text-white shadow-lg border-b-4 border-orange-500 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-orange-500 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
+                    <i class="fa-solid me-0 fa-flask-vial text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                        วิชาเคมี 4 <span class="text-xs bg-orange-500/20 text-orange-300 font-semibold px-2.5 py-0.5 rounded-full border border-orange-400/30">ภาคเรียนที่ 2-69</span>
+                    </h1>
+                    <p class="text-xs text-slate-300">ระบบติดตามคะแนนและการส่งงานนักเรียน ม.5/1 - ม.5/3 (Real-time Dashboard)</p>
+                </div>
+            </div>
+
+            <!-- Live Status & Actions -->
+            <div class="flex items-center space-x-3 text-sm">
+                <div class="bg-slate-800/80 backdrop-blur border border-slate-700 rounded-lg px-3 py-1.5 flex items-center space-x-2">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span class="pulse-live absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-xs text-slate-300 font-medium" id="syncStatus">เชื่อมต่อ Google Sheets</span>
+                </div>
+
+                <button onclick="fetchSheetData()" id="refreshBtn" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition duration-200 flex items-center gap-1.5 active:scale-95">
+                    <i class="fa-solid fa-rotate-right" id="refreshIcon"></i>
+                    <span>อัปเดตข้อมูล</span>
+                </button>
+
+                <a href="https://docs.google.com/spreadsheets/d/1Yg3LgeKxb2ZJ5IT-RhHvXnCKvtImZokdrxleQpXg5eU/edit?gid=17792026#gid=17792026" target="_blank" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
+                    <i class="fa-solid fa-file-excel text-emerald-400"></i>
+                    <span class="hidden sm:inline"> Google Sheet</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- Top Overview Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="statsCards">
+            <!-- Total Students Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-slate-500">จำนวนนักเรียนทั้งหมด</p>
+                        <h3 class="text-2xl font-bold text-navy-900 mt-1" id="statTotalStudents">100 คน</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5" id="statClassBreakdown">5/1 (26) | 5/2 (38) | 5/3 (36)</p>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-blue-50 text-navy-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-user-graduate"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submission Rate Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-slate-500">อัตราการส่งงานภาพรวม</p>
+                        <h3 class="text-2xl font-bold text-emerald-600 mt-1" id="statSubmissionRate">0%</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5" id="statSubmittedCount">คำนวณจากกิจกรรมแบบฝึกหัด</p>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-clipboard-check"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Work Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-slate-500">นักเรียนที่มีงานค้างส่ง</p>
+                        <h3 class="text-2xl font-bold text-orange-600 mt-1" id="statPendingCount">0 คน</h3>
+                        <p class="text-[11px] text-orange-600/80 font-medium mt-0.5">ต้องการการติดตามใกล้ชิด</p>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Score Average Card -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-slate-500">คะแนนเฉลี่ยรวม</p>
+                        <h3 class="text-2xl font-bold text-navy-700 mt-1" id="statAvgScore">0.0 <span class="text-xs text-slate-400 font-normal">/ 100</span></h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5" id="statMidtermFinalAvg">กลางภาค: 0.0 | ปลายภาค: 0.0</p>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-chart-column"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Controls & Search Filter Section -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 mb-6 space-y-4">
+            
+            <!-- Class Selector Tabs -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0" id="classTabs">
+                    <button onclick="switchClass('all')" id="tab-all" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition duration-200 bg-navy-600 text-white shadow-sm">
+                        <i class="fa-solid fa-globe mr-1.5"></i>ทุกห้องเรียน (ม.5)
+                    </button>
+                    <button onclick="switchClass('5/1')" id="tab-5/1" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition duration-200 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-users mr-1.5 text-navy-500"></i>มัธยมศึกษาปีที่ 5/1
+                    </button>
+                    <button onclick="switchClass('5/2')" id="tab-5/2" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition duration-200 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-users mr-1.5 text-navy-500"></i>มัธยมศึกษาปีที่ 5/2
+                    </button>
+                    <button onclick="switchClass('5/3')" id="tab-5/3" class="tab-btn px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition duration-200 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-users mr-1.5 text-navy-500"></i>มัธยมศึกษาปีที่ 5/3
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-2 text-xs">
+                    <button onclick="toggleAnalyticsView()" id="toggleAnalyticsBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-medium transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-pie text-orange-500"></i>
+                        <span>สรุปการวิเคราะห์</span>
+                    </button>
+                    <button onclick="exportCSV()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-xl font-medium transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-csv"></i>
+                        <span>ดาวน์โหลด CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <!-- Search Input -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="applyFilters()" placeholder="ค้นหาชื่อ, รหัส, ชื่อเล่น..." class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-transparent bg-slate-50/50">
+                </div>
+
+                <!-- Submission Status Filter -->
+                <div>
+                    <select id="statusFilter" onchange="applyFilters()" class="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500 bg-slate-50/50 text-slate-700">
+                        <option value="all">-- สถานะการส่งงานทั้งหมด --</option>
+                        <option value="pending">⚠️ มีงานค้างส่ง (คะแนน 0)</option>
+                        <option value="complete">✅ ส่งงานครบทุกชิ้น</option>
+                        <option value="low_score">🔻 คะแนนรวมต่ำกว่า 50%</option>
+                    </select>
+                </div>
+
+                <!-- Columns View Toggle -->
+                <div>
+                    <select id="columnViewSelect" onchange="toggleColumnsView()" class="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-500 bg-slate-50/50 text-slate-700">
+                        <option value="all">แสดงคอลัมน์คะแนนทั้งหมด (ครบถ้วน)</option>
+                        <option value="summary">แสดงเฉพาะคะแนนรวม & สอบ</option>
+                        <option value="pre_mid">เน้นคะแนนก่อนกลางภาค (แบบฝึก 1-4, ทักษะ 1-2)</option>
+                        <option value="post_mid">เน้นคะแนนหลังกลางภาค (แบบฝึก 5-8, ทักษะ 3-4)</option>
+                    </select>
+                </div>
+
+                <!-- Last Updated Time Banner -->
+                <div class="flex items-center justify-between sm:justify-end text-[11px] text-slate-400 px-2 py-1 bg-slate-50 rounded-xl border border-slate-100">
+                    <span class="flex items-center gap-1">
+                        <i class="fa-regular fa-clock text-orange-500"></i>
+                        <span>อัปเดตล่าสุด:</span>
+                    </span>
+                    <span class="font-medium text-slate-600" id="lastUpdatedText">กำลังโหลด...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visual Analytics Section (Collapsible) -->
+        <div id="analyticsSection" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 mb-6 transition">
+            <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                <h3 class="text-sm font-bold text-navy-900 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-orange-500"></i>
+                    <span>ภาพรวมผลสัมฤทธิ์ทางการเรียน วิชาเคมี 4</span>
+                </h3>
+                <span class="text-xs text-slate-400">อ้างอิงข้อมูลนักเรียนทั้งหมดในระบบ</span>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Grade Distribution Chart -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h4 class="text-xs font-semibold text-slate-700 mb-3 text-center">การกระจายตัวระดับเกรด (Grade Breakdown)</h4>
+                    <div class="h-56 relative flex items-center justify-center">
+                        <canvas id="gradeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Class Comparison Chart -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h4 class="text-xs font-semibold text-slate-700 mb-3 text-center">เปรียบเทียบคะแนนเฉลี่ยรายห้องเรียน</h4>
+                    <div class="h-56 relative">
+                        <canvas id="classCompareChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score Table Container -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+            <div class="overflow-x-auto custom-scrollbar max-h-[650px] relative">
+                <table class="w-full text-left border-collapse text-xs whitespace-nowrap" id="scoreTable">
+                    <!-- Table Header -->
+                    <thead class="bg-navy-900 text-white sticky top-0 z-30 shadow-sm">
+                        <!-- Header Row 1: Main Category Headers -->
+                        <tr class="divide-x divide-slate-700/60 font-semibold text-[11px] tracking-wider uppercase">
+                            <th class="p-2.5 text-center sticky-col bg-navy-900 w-12 min-w-[50px]">ลำดับ</th>
+                            <th class="p-2.5 text-center sticky-col-2 bg-navy-900 w-20 min-w-[80px]">รหัส</th>
+                            <th class="p-2.5 sticky-col-3 bg-navy-900 min-w-[180px]">ชื่อ - นามสกุล (ชื่อเล่น)</th>
+                            
+                            <!-- Pre Midterm Group -->
+                            <th colspan="10" class="p-2 text-center bg-navy-800 text-blue-200 border-b border-navy-700 col-group-pre">
+                                <i class="fa-solid fa-book-open text-orange-400 mr-1"></i>คะแนนระหว่างเรียน (ก่อนกลางภาค) [30 คะแนน]
+                            </th>
+
+                            <!-- Post Midterm Group -->
+                            <th colspan="10" class="p-2 text-center bg-navy-800 text-orange-200 border-b border-navy-700 col-group-post">
+                                <i class="fa-solid fa-pen-ruler text-orange-400 mr-1"></i>คะแนนระหว่างเรียน (หลังกลางภาค) [30 คะแนน]
+                            </th>
+
+                            <!-- Exams & Total Group -->
+                            <th colspan="4" class="p-2 text-center bg-orange-600 text-white border-b border-orange-500">
+                                <i class="fa-solid fa-award mr-1"></i>สรุปผลรวม & เกรด [40 คะแนน]
+                            </th>
+                        </tr>
+
+                        <!-- Header Row 2: Sub Columns -->
+                        <tr class="divide-x divide-slate-700/60 text-[10px] bg-navy-800 text-slate-300">
+                            <th class="p-2 text-center sticky-col bg-navy-800">No.</th>
+                            <th class="p-2 text-center sticky-col-2 bg-navy-800">Code</th>
+                            <th class="p-2 sticky-col-3 bg-navy-800">Name & Nickname</th>
+
+                            <!-- Pre-Mid Columns (10 cols) -->
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="แบบฝึกกิจกรรมที่ 1 (10)">ผ.1</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="แบบฝึกกิจกรรมที่ 2 (10)">ผ.2</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="แบบฝึกกิจกรรมที่ 3 (10)">ผ.3</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="แบบฝึกกิจกรรมที่ 4 (10)">ผ.4</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="กิจกรรมฝึกทักษะฯ ที่ 1 (10)">ท.1</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="กิจกรรมฝึกทักษะฯ ที่ 2 (10)">ท.2</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="คะแนนเก็บครั้งที่ 1 (10)">เก็บ 1</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="คะแนนเก็บครั้งที่ 2 (10)">เก็บ 2</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-pre" title="คะแนนเก็บครั้งที่ 3 (10)">เก็บ 3</th>
+                            <th class="p-1.5 text-center font-bold text-orange-300 bg-navy-900/60 min-w-[60px] col-pre">รวมก่อน</th>
+
+                            <!-- Post-Mid Columns (10 cols) -->
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="แบบฝึกกิจกรรมที่ 5 (10)">ผ.5</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="แบบฝึกกิจกรรมที่ 6 (10)">ผ.6</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="แบบฝึกกิจกรรมที่ 7 (10)">ผ.7</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="แบบฝึกกิจกรรมที่ 8 (10)">ผ.8</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="กิจกรรมฝึกทักษะฯ ที่ 3 (10)">ท.3</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="กิจกรรมฝึกทักษะฯ ที่ 4 (10)">ท.4</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="คะแนนเก็บครั้งที่ 4 (10)">เก็บ 4</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="คะแนนเก็บครั้งที่ 5 (10)">เก็บ 5</th>
+                            <th class="p-1.5 text-center w-12 min-w-[48px] col-post" title="คะแนนเก็บครั้งที่ 6 (10)">เก็บ 6</th>
+                            <th class="p-1.5 text-center font-bold text-orange-300 bg-navy-900/60 min-w-[60px] col-post">รวมหลัง</th>
+
+                            <!-- Midterm, Final, Total, Grade -->
+                            <th class="p-1.5 text-center w-16 min-w-[55px] bg-orange-700/80 font-bold text-white">กลางภาค (20)</th>
+                            <th class="p-1.5 text-center w-16 min-w-[55px] bg-orange-700/80 font-bold text-white">ปลายภาค (30)</th>
+                            <th class="p-1.5 text-center w-16 min-w-[60px] bg-emerald-700 text-white font-bold text-xs">รวม (100)</th>
+                            <th class="p-1.5 text-center w-14 min-w-[50px] bg-navy-900 text-amber-300 font-bold text-xs">เกรด</th>
+                        </tr>
+                    </thead>
+
+                    <!-- Table Body -->
+                    <tbody id="tableBody" class="divide-y divide-slate-200/80 font-medium">
+                        <!-- Dynamic Rows Insertion -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Table Footer / Summary Pagination Bar -->
+            <div class="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-3 h-3 bg-red-100 border border-red-300 rounded-sm"></span>
+                    <span>คะแนน 0 / ค้างส่งงาน</span>
+                    <span class="inline-block w-3 h-3 bg-emerald-100 border border-emerald-300 rounded-sm ml-3"></span>
+                    <span>ส่งงานเรียบร้อย</span>
+                </div>
+                <div id="tableRecordCount" class="font-medium text-slate-700">
+                    แสดง 0 รายการ
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Student Detail Modal -->
+    <div id="studentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-fadeIn">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-navy-900 to-navy-700 text-white p-5 flex items-start justify-between">
+                <div>
+                    <span class="text-[11px] bg-orange-500 text-white font-bold px-2 py-0.5 rounded-full" id="modalClass">ม.5/1</span>
+                    <h3 class="text-lg font-bold text-white mt-1.5" id="modalName">ชื่อ-นามสกุล</h3>
+                    <p class="text-xs text-slate-300" id="modalSubTitle">รหัส: - | ชื่อเล่น: -</p>
+                </div>
+                <button onclick="closeStudentModal()" class="text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                
+                <!-- Score Summary Cards -->
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">ก่อนกลางภาค</span>
+                        <p class="text-base font-bold text-navy-800 mt-0.5" id="modalPreTotal">0 / 30</p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">หลังกลางภาค</span>
+                        <p class="text-base font-bold text-navy-800 mt-0.5" id="modalPostTotal">0 / 30</p>
+                    </div>
+                    <div class="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                        <span class="text-[10px] text-orange-600 font-semibold">คะแนนรวมสุทธิ</span>
+                        <p class="text-lg font-extrabold text-orange-600 mt-0.5" id="modalGrandTotal">0 / 100</p>
+                        <span class="text-[10px] font-bold text-emerald-600" id="modalGrade">เกรด: 0</span>
+                    </div>
+                </div>
+
+                <!-- Missing Work Checklist -->
+                <div class="border border-slate-200/80 rounded-xl p-3.5 bg-slate-50/50">
+                    <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-list-check text-orange-500"></i>
+                        <span>รายการภาระงานและคะแนนเก็บ</span>
+                    </h4>
+                    <div class="space-y-1.5 text-xs" id="modalWorkList">
+                        <!-- Dynamic Work Items -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-slate-50 p-3 border-t border-slate-100 text-right">
+                <button onclick="closeStudentModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Store
+        const GOOGLE_SHEET_ID = "1Yg3LgeKxb2ZJ5IT-RhHvXnCKvtImZokdrxleQpXg5eU";
+        const CLASSES = ["5/1", "5/2", "5/3"];
+        
+        let allStudentsData = [];
+        let currentClassFilter = 'all';
+        let gradeChartInstance = null;
+        let classCompareChartInstance = null;
+
+        // Raw Initial Mock Data derived directly from the document to guarantee immediate rendering
+        const initialRawData = {
+            "5/1": [
+                { no: "1", code: "24625", title: "น.ส.", name: "รัตนาวดี  ,สุรพันธุ์", nick: "itim", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "2", code: "24651", title: "น.ส.", name: "พิมพ์มาดา,วิชรัตน์", nick: "Pow", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "3", code: "24654", title: "นาย", name: "ทักษ์ดนัย ,มณีพันธ์", nick: "Chard", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "4", code: "24658", title: "นาย", name: "กฤติคุน,บุญมี", nick: "Stamp", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "5", code: "24662", title: "น.ส.", name: "ปภาวี,ศิริสุนทร", nick: "Front / ฟร้อนท์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "6", code: "24772", title: "น.ส.", name: "ณัฐธิดา,ลาดจันต๊ะ", nick: "Nina", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "7", code: "24779", title: "นาย", name: "วีรเดช,มาเยอะ", nick: "V", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "8", code: "24782", title: "น.ส.", name: "ชมพูนุช,เสรีสวัสดิ์", nick: "Chompoo", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "9", code: "24789", title: "นาย", name: "นวกร,ตุ๊กกี่", nick: "Pukan", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "10", code: "24796", title: "นาย", name: "กันตพัฒน์,โถงาม", nick: "Petong", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "11", code: "24832", title: "นาย", name: "ชาญพิศุทธิ์,กมลหิรัญจรัส", nick: "Phukao", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "12", code: "24926", title: "นาย", name: "กิตติธัช,สุขแก้ว", nick: "poom", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "13", code: "25406", title: "น.ส.", name: "รสนันท์,พาณิชย์พิทักษ์", nick: "Cheer/เชียร์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "14", code: "25820", title: "น.ส.", name: "สุภัสสรา  ,อินสวน", nick: "Atom", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "15", code: "26136", title: "น.ส.", name: "ฐิตารีย์ ,กิ่งเกษ", nick: "Aime / เอม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "16", code: "26137", title: "น.ส.", name: "ฐิติรัตน์,น้ำพี้", nick: "Rat/รัตน์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "17", code: "26138", title: "น.ส.", name: "ธันย์ชนก,กันธาแก้ว", nick: "Nok", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "18", code: "26140", title: "น.ส.", name: "เบญญา  ,ศักดิ์คิรีชัย", nick: "Gyoza", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "19", code: "26141", title: "น.ส.", name: "พรวิมล,เสาร์เพ็ง", nick: "ใหม่/mai", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "20", code: "26142", title: "น.ส.", name: "วราลักษณ์,ทองอักษรานนท์", nick: "Wine ไวท์งิ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "21", code: "26248", title: "น.ส.", name: "ชัญญานุช,กิ้งคำปา", nick: "Numkhing", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "22", code: "26249", title: "น.ส.", name: "ณัฐกฤตา,ประชุม", nick: "Kan", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "23", code: "26272", title: "นาย", name: "อาชชวันต์,ศรีงามเจริญสกุล", nick: "Tonkla", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "24", code: "26276", title: "น.ส.", name: "มัลลิกา,ช่างคำ", nick: "Chompu", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "25", code: "26279", title: "น.ส.", name: "ศรัญญา,สันติสุขวนา", nick: "Ah/อ๊ะ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "26", code: "26280", title: "น.ส.", name: "รังสิมา,วงค์เชียงขวาง", nick: "ผักกาด", scores: Array(18).fill(0), mid: 0, final: 0 }
+            ],
+            "5/2": [
+                { no: "1", code: "24644", title: "นาย", name: "ทวีโชค,เชียงตา", nick: "โชค", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "2", code: "24653", title: "น.ส.", name: "ซารีนา,ฟูชื่น", nick: "Yu", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "3", code: "24661", title: "น.ส.", name: "นาซีฮา,ดาดูเคล", nick: "นาซี", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "4", code: "24667", title: "นาย", name: "ฤทธิ์ณรงค์,อาดอ", nick: "lay", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "5", code: "24670", title: "น.ส.", name: "ชฎาพร,กำลังว่อง", nick: "Ice", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "6", code: "24676", title: "น.ส.", name: "รัศมี,เจริญชัยสิทธิกุล", nick: "Mee", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "7", code: "24681", title: "นาย", name: "ปิยังกูร,ชมชื่น", nick: "Atom", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "8", code: "24685", title: "นาย", name: "ชารีฟ,แซ่จาง", nick: "Tee", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "9", code: "24744", title: "น.ส.", name: "จีรนันท์,อนุภพ", nick: "Jamie", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "10", code: "24747", title: "น.ส.", name: "เสาวลักษณ์,มณีวรรณ์", nick: "พลอย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "11", code: "24750", title: "นาย", name: "ณัฐวุฒิ,มั่งมูล", nick: "NUT  (มังคุด)", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "12", code: "24753", title: "นาย", name: "ขวัญ,สุขแจ่ม", nick: "Tonnam", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "13", code: "24755", title: "น.ส.", name: "ฐานิดา,ลุงจอง", nick: "Mew", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "14", code: "24760", title: "น.ส.", name: "พิชญา,แสนจิต", nick: "Pang", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "15", code: "24777", title: "น.ส.", name: "ฌิกมล,ถาวร", nick: "Ink", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "16", code: "24778", title: "น.ส.", name: "ฑิตยา,จินะวงค์", nick: "Kan (กานต์)", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "17", code: "24785", title: "น.ส.", name: "สุพิชญา,ทวีสมพาณิช", nick: "ผักกาด", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "18", code: "24794", title: "น.ส.", name: "วรรณธิดา,ฟองมูล", nick: "ผักกาด", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "19", code: "24848", title: "น.ส.", name: "อภิฤดี,อัศวศรัทธากุล", nick: "กระแต", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "20", code: "24927", title: "นาย", name: "ศกล,ตาวงศ์", nick: "แดน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "21", code: "24952", title: "นาย", name: "เกียรติคุณ,พรทวีวงศ์", nick: "Bank", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "22", code: "24968", title: "นาย", name: "มิ่งขวัญ,บรุณพันธ์", nick: "Sun", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "23", code: "25400", title: "น.ส.", name: "จันทร์ธิดา,สุมาตร", nick: "Praewa", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "24", code: "25401", title: "น.ส.", name: "ศิรวัลย์,ชมภูแก้ว", nick: "Khao", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "25", code: "25841", title: "น.ส.", name: "ธนาภา,วันชิน", nick: "แตงโม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "26", code: "26144", title: "นาย", name: "คุณากร,แซ่หวัง", nick: "Tar", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "27", code: "26145", title: "นาย", name: "รัชกฤต,สายชุมพู", nick: "First", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "28", code: "26146", title: "น.ส.", name: "กุลวดี,จองคำ", nick: "วาย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "29", code: "26147", title: "น.ส.", name: "ชญาณี,จองหย่า", nick: "เเอม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "30", code: "26148", title: "น.ส.", name: "ธนันพร,ปัญญารัตน์", nick: "ฟ้าใส", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "31", code: "26149", title: "น.ส.", name: "ธันธิดา,ลังกา", nick: "ปิ่น", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "32", code: "26150", title: "น.ส.", name: "ปลายฟ้า,มาทอง", nick: "ปลาย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "33", code: "26151", title: "น.ส.", name: "พัชรินทร์,แซ่โซ้ง", nick: "Ploy", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "34", code: "26152", title: "น.ส.", name: "ศุภมาส,ช่วงรังษี", nick: "earn", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "35", code: "26153", title: "น.ส.", name: "สุธิดา,เรืองกิจเฉลิม", nick: "กบ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "36", code: "26154", title: "น.ส.", name: "สุภัสสรา,เเซ่ยะ", nick: "ชมพู่", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "37", code: "26155", title: "น.ส.", name: "อริสรา,กันธา", nick: "นุ่น", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "38", code: "26156", title: "น.ส.", name: "อำพร,ไชยวงค์", nick: "Am", scores: Array(18).fill(0), mid: 0, final: 0 }
+            ],
+            "5/3": [
+                { no: "1", code: "24629", title: "นาย", name: "คมกริช,พงยา", nick: "คม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "2", code: "24641", title: "น.ส.", name: "ธิติพร,ลุงข่อง", nick: "น้ำหวาน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "3", code: "24643", title: "นาย", name: "อะเปผะ,เปียผะ", nick: "ดล", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "4", code: "24754", title: "น.ส.", name: "วิกันดา,แซ่ลี่", nick: "เจนนี่", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "5", code: "24768", title: "น.ส.", name: "กัญญาณัฐ,ยืนยง", nick: "แพน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "6", code: "24786", title: "นาย", name: "พงศกร,ผุดผาด", nick: "แบงค์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "7", code: "24799", title: "นาย", name: "พรพิพัฒน์,ขันทะศรีมา", nick: "กาฟิวส์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "8", code: "24812", title: "นาย", name: "ไพรัตน์,จันทร์เจริญ", nick: "แฟร้ง", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "9", code: "24818", title: "นาย", name: "จิรายุ,เหลียวล้อมทอง", nick: "จีโน่", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "10", code: "24822", title: "นาย", name: "ดลพัฒน์,หลงมณี", nick: "ป้าย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "11", code: "24831", title: "น.ส.", name: "พิมพ์ลภัส,เกตุทอง", nick: "ว่าน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "12", code: "24932", title: "นาย", name: "วรโชติ,จอมจันทร์", nick: "การ์ฟิวส์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "13", code: "25445", title: "นาย", name: "ชานุวัฒน์,บุญยเนตร", nick: "หยก", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "14", code: "26139", title: "น.ส.", name: "ธิดารัตน์,ขาวจันทร์ตา", nick: "แจน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "15", code: "26143", title: "น.ส.", name: "สกาวเดือน,ตระกูลลลิตา", nick: "แพรวา", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "16", code: "26158", title: "นาย", name: "โชคชัย,คำปารี", nick: "เจ๋ง", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "17", code: "26159", title: "นาย", name: "ณัฐวุติ,ขันคำมา", nick: "ไอซ์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "18", code: "26160", title: "นาย", name: "ธีระพงศ์,ปีก่ำ", nick: "ดรีม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "19", code: "26161", title: "นาย", name: "อภิวัฒน์,แซ่ปึง", nick: "ต้น", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "20", code: "26162", title: "น.ส.", name: "กมลพรรณ,อุตศรี", nick: "เข็ม", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "21", code: "26164", title: "น.ส.", name: "ขวัญทอง,สึ่งสุข", nick: "ฟ้า", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "22", code: "26165", title: "น.ส.", name: "จันทิมา,ลุงซู่", nick: "พลอย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "23", code: "26166", title: "น.ส.", name: "ณัฐนรี,กงจักร", nick: "พิ้งค์", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "24", code: "26167", title: "น.ส.", name: "ณัฐพร,จำงาม", nick: "ณัฐ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "25", code: "26168", title: "น.ส.", name: "นานา,คริสเตียน", nick: "นานา", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "26", code: "26170", title: "น.ส.", name: "ชัญญานุช,ดวงธรรม", nick: "น้ำเพชร", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "27", code: "26172", title: "น.ส.", name: "พอลลีน,เลส่อ", nick: "หลิน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "28", code: "26173", title: "น.ส.", name: "ภัณฑิรา,แสนเมืองมา", nick: "ไข่มุก", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "29", code: "26174", title: "น.ส.", name: "ราซียา,มูฮัมหมัด", nick: "ราซียา", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "30", code: "26175", title: "น.ส.", name: "สไบทิพย์,จันทร์ปิง", nick: "จุ๊บจิ๊บ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "31", code: "26250", title: "น.ส.", name: "วราลี,สายสุริยะ", nick: "เอิงเอย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "32", code: "26251", title: "นาย", name: "ณภัทร,สอนทุ่ง", nick: "เติ้ล", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "33", code: "26252", title: "นาย", name: "แทนคุณ,คำปั่น", nick: "แทนคุณ", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "34", code: "26253", title: "นาย", name: "ภูวสิษฐ์,เกีรตินิธิธรากุล", nick: "อ้วน", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "35", code: "26713", title: "น.ส.", name: "พัชราภา,ปะทิ", nick: "ปาย", scores: Array(18).fill(0), mid: 0, final: 0 },
+                { no: "36", code: "26714", title: "น.ส.", name: "ศรีวรรณา,หิรัญธนา", nick: "นุ่น", scores: Array(18).fill(0), mid: 0, final: 0 }
+            ]
+        };
+
+        const scoreHeaders = [
+            "แบบฝึกกิจกรรมที่ 1", "แบบฝึกกิจกรรมที่ 2", "แบบฝึกกิจกรรมที่ 3", "แบบฝึกกิจกรรมที่ 4",
+            "กิจกรรมฝึกทักษะฯ 1", "กิจกรรมฝึกทักษะฯ 2", "คะแนนเก็บครั้งที่ 1", "คะแนนเก็บครั้งที่ 2", "คะแนนเก็บครั้งที่ 3",
+            "แบบฝึกกิจกรรมที่ 5", "แบบฝึกกิจกรรมที่ 6", "แบบฝึกกิจกรรมที่ 7", "แบบฝึกกิจกรรมที่ 8",
+            "กิจกรรมฝึกทักษะฯ 3", "กิจกรรมฝึกทักษะฯ 4", "คะแนนเก็บครั้งที่ 4", "คะแนนเก็บครั้งที่ 5", "คะแนนเก็บครั้งที่ 6"
+        ];
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            initStudentsData(initialRawData);
+            fetchSheetData();
+        });
+
+        // Parse & Process Student Data Structure
+        function initStudentsData(rawData) {
+            allStudentsData = [];
+            
+            CLASSES.forEach(className => {
+                if (rawData[className]) {
+                    rawData[className].forEach(st => {
+                        // Calculate score sums
+                        const scores = st.scores || Array(18).fill(0);
+                        const preScores = scores.slice(0, 9);
+                        const postScores = scores.slice(9, 18);
+
+                        // Scale or sum logic
+                        const preTotal = preScores.reduce((a, b) => a + (parseFloat(b) || 0), 0);
+                        const postTotal = postScores.reduce((a, b) => a + (parseFloat(b) || 0), 0);
+                        
+                        // Scale pre & post to 30 max if raw max is higher, or take as is
+                        const preScaled = Math.min(30, preTotal);
+                        const postScaled = Math.min(30, postTotal);
+                        
+                        const mid = parseFloat(st.mid) || 0;
+                        const finalScore = parseFloat(st.final) || 0;
+                        const grandTotal = Math.round((preScaled + postScaled + mid + finalScore) * 100) / 100;
+                        const grade = calculateGrade(grandTotal);
+
+                        // Missing work count
+                        const pendingWorks = scores.filter(s => parseFloat(s) === 0).length;
+
+                        allStudentsData.push({
+                            className,
+                            no: st.no,
+                            code: st.code,
+                            title: st.title || '',
+                            fullName: st.name.replace(',', ' '),
+                            nickname: st.nick || '',
+                            scores: scores,
+                            preTotal: Math.round(preScaled * 10) / 10,
+                            postTotal: Math.round(postScaled * 10) / 10,
+                            mid,
+                            final: finalScore,
+                            grandTotal,
+                            grade,
+                            pendingWorks
+                        });
+                    });
+                }
+            });
+
+            renderDashboard();
+        }
+
+        // Grade Calculation Standard Formula
+        function calculateGrade(score) {
+            if (score >= 80) return '4';
+            if (score >= 75) return '3.5';
+            if (score >= 70) return '3';
+            if (score >= 65) return '2.5';
+            if (score >= 60) return '2';
+            if (score >= 55) return '1.5';
+            if (score >= 50) return '1';
+            return '0';
+        }
+
+        // Fetch Live CSV Data from Google Sheets
+        async function fetchSheetData() {
+            const syncStatus = document.getElementById('syncStatus');
+            const refreshIcon = document.getElementById('refreshIcon');
+            refreshIcon.classList.add('fa-spin');
+            syncStatus.innerText = "กำลังซิงค์ข้อมูล...";
+
+            try {
+                let fetchedRawData = {};
+                let successCount = 0;
+
+                for (let className of CLASSES) {
+                    const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(className)}`;
+                    
+                    try {
+                        const response = await fetch(csvUrl);
+                        if (response.ok) {
+                            const csvText = await response.text();
+                            const parsed = Papa.parse(csvText, { header: false });
+                            
+                            if (parsed.data && parsed.data.length > 3) {
+                                fetchedRawData[className] = extractStudentsFromCSV(parsed.data);
+                                successCount++;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`Could not live fetch ${className}, using fallback structure.`, err);
+                    }
+                }
+
+                if (successCount > 0) {
+                    initStudentsData(fetchedRawData);
+                    syncStatus.innerText = "เชื่อมต่อสำเร็จ (Live)";
+                } else {
+                    syncStatus.innerText = "ใช้งานข้อมูลระบบ (Offline)";
+                }
+
+                const now = new Date();
+                document.getElementById('lastUpdatedText').innerText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' น.';
+
+            } catch (error) {
+                console.error("Fetch Sheet Error:", error);
+                syncStatus.innerText = "ข้อมูลระบบสำรอง";
+            } finally {
+                refreshIcon.classList.remove('fa-spin');
+            }
+        }
+
+        // Extract student records from raw parsed CSV rows
+        function extractStudentsFromCSV(rows) {
+            const list = [];
+            // Find data start row (usually after headers)
+            let startIdx = 0;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i] && rows[i][0] && !isNaN(parseInt(rows[i][0]))) {
+                    startIdx = i;
+                    break;
+                }
+            }
+
+            for (let i = startIdx; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || !r[0] || isNaN(parseInt(r[0]))) continue;
+
+                // Format: No, Code, Title, Name, Nickname, 18 scores, Mid, Final
+                const no = r[0] || '';
+                const code = r[1] || '';
+                const title = r[2] || '';
+                const name = r[3] || '';
+                const nick = r[4] || '';
+                
+                const scores = [];
+                for (let col = 5; col <= 22; col++) {
+                    scores.push(parseFloat(r[col]) || 0);
+                }
+                const mid = parseFloat(r[23]) || 0;
+                const final = parseFloat(r[24]) || 0;
+
+                list.push({
+                    no, code, title, name, nick, scores, mid, final
+                });
+            }
+            return list;
+        }
+
+        // Main Dashboard Render Routine
+        function renderDashboard() {
+            renderStats();
+            renderTable();
+            renderCharts();
+        }
+
+        // Calculate Overview Statistics
+        function renderStats() {
+            const filtered = getFilteredData();
+            
+            // Total count
+            document.getElementById('statTotalStudents').innerText = `${filtered.length} คน`;
+            
+            // Breakdown text
+            const c1 = allStudentsData.filter(s => s.className === '5/1').length;
+            const c2 = allStudentsData.filter(s => s.className === '5/2').length;
+            const c3 = allStudentsData.filter(s => s.className === '5/3').length;
+            document.getElementById('statClassBreakdown').innerText = `5/1 (${c1}) | 5/2 (${c2}) | 5/3 (${c3})`;
+
+            // Submission rate
+            let totalAssignmentSlots = filtered.length * 18;
+            let completedSlots = 0;
+            let pendingStudents = 0;
+
+            filtered.forEach(s => {
+                const turnedIn = s.scores.filter(v => v > 0).length;
+                completedSlots += turnedIn;
+                if (s.pendingWorks > 0) pendingStudents++;
+            });
+
+            const rate = totalAssignmentSlots > 0 ? Math.round((completedSlots / totalAssignmentSlots) * 100) : 0;
+            document.getElementById('statSubmissionRate').innerText = `${rate}%`;
+            document.getElementById('statSubmittedCount').innerText = `ส่งแล้ว ${completedSlots} / ${totalAssignmentSlots} งาน`;
+
+            // Pending students count
+            document.getElementById('statPendingCount').innerText = `${pendingStudents} คน`;
+
+            // Averages
+            const avgGrand = filtered.length > 0 ? (filtered.reduce((a, b) => a + b.grandTotal, 0) / filtered.length).toFixed(1) : '0.0';
+            const avgMid = filtered.length > 0 ? (filtered.reduce((a, b) => a + b.mid, 0) / filtered.length).toFixed(1) : '0.0';
+            const avgFinal = filtered.length > 0 ? (filtered.reduce((a, b) => a + b.final, 0) / filtered.length).toFixed(1) : '0.0';
+
+            document.getElementById('statAvgScore').innerHTML = `${avgGrand} <span class="text-xs text-slate-400 font-normal">/ 100</span>`;
+            document.getElementById('statMidtermFinalAvg').innerText = `กลางภาค: ${avgMid} | ปลายภาค: ${avgFinal}`;
+        }
+
+        // Filter Data based on Selected Tab & Dropdowns
+        function getFilteredData() {
+            let data = [...allStudentsData];
+
+            // Tab filter
+            if (currentClassFilter !== 'all') {
+                data = data.filter(s => s.className === currentClassFilter);
+            }
+
+            // Search Filter
+            const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (searchVal) {
+                data = data.filter(s => 
+                    s.code.toLowerCase().includes(searchVal) ||
+                    s.fullName.toLowerCase().includes(searchVal) ||
+                    s.nickname.toLowerCase().includes(searchVal) ||
+                    s.className.toLowerCase().includes(searchVal)
+                );
+            }
+
+            // Status Filter
+            const statusVal = document.getElementById('statusFilter').value;
+            if (statusVal === 'pending') {
+                data = data.filter(s => s.pendingWorks > 0);
+            } else if (statusVal === 'complete') {
+                data = data.filter(s => s.pendingWorks === 0);
+            } else if (statusVal === 'low_score') {
+                data = data.filter(s => s.grandTotal < 50);
+            }
+
+            return data;
+        }
+
+        // Render Table Rows
+        function renderTable() {
+            const tableBody = document.getElementById('tableBody');
+            const students = getFilteredData();
+            
+            document.getElementById('tableRecordCount').innerText = `แสดงทั้งหมด ${students.length} รายการ`;
+
+            if (students.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="30" class="py-12 text-center text-slate-400">
+                            <i class="fa-regular fa-folder-open text-3xl mb-2 block"></i>
+                            ไม่พบข้อมูลนักเรียนตามเงื่อนไขที่เลือก
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            students.forEach((st, idx) => {
+                const isEven = idx % 2 === 0;
+                const rowBg = isEven ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/60 hover:bg-slate-100/80';
+                
+                html += `<tr class="${rowBg} transition duration-150 divide-x divide-slate-200/60">`;
+                
+                // Sticky Columns: No, Code, Name
+                html += `<td class="p-2 text-center font-medium text-slate-500 sticky-col ${isEven ? 'bg-white' : 'bg-slate-50'}">${st.no}</td>`;
+                html += `<td class="p-2 text-center font-mono text-slate-600 sticky-col-2 ${isEven ? 'bg-white' : 'bg-slate-50'}">${st.code}</td>`;
+                
+                // Student Name with Clickable Modal Trigger
+                html += `
+                    <td class="p-2 font-medium sticky-col-3 ${isEven ? 'bg-white' : 'bg-slate-50'}">
+                        <button onclick="openStudentModal('${st.code}')" class="text-left font-semibold text-navy-700 hover:text-orange-600 transition flex items-center justify-between w-full group">
+                            <span>${st.title}${st.fullName} ${st.nickname ? `<span class="text-slate-400 font-normal">(${st.nickname})</span>` : ''}</span>
+                            <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded group-hover:bg-orange-500 group-hover:text-white transition ml-2">${st.className}</span>
+                        </button>
+                    </td>
+                `;
+
+                // Pre-midterm 9 score columns
+                for (let i = 0; i < 9; i++) {
+                    const score = st.scores[i];
+                    const isZero = score === 0;
+                    const cellStyle = isZero 
+                        ? 'bg-red-50/80 text-red-500 font-bold' 
+                        : 'text-slate-700';
+                    html += `<td class="p-2 text-center ${cellStyle} col-pre">${score}</td>`;
+                }
+
+                // Pre-mid Total
+                html += `<td class="p-2 text-center font-bold text-navy-800 bg-slate-100/70 col-pre">${st.preTotal}</td>`;
+
+                // Post-midterm 9 score columns
+                for (let i = 9; i < 18; i++) {
+                    const score = st.scores[i];
+                    const isZero = score === 0;
+                    const cellStyle = isZero 
+                        ? 'bg-red-50/80 text-red-500 font-bold' 
+                        : 'text-slate-700';
+                    html += `<td class="p-2 text-center ${cellStyle} col-post">${score}</td>`;
+                }
+
+                // Post-mid Total
+                html += `<td class="p-2 text-center font-bold text-navy-800 bg-slate-100/70 col-post">${st.postTotal}</td>`;
+
+                // Midterm Score
+                html += `<td class="p-2 text-center font-semibold text-navy-900 bg-orange-50/40">${st.mid}</td>`;
+
+                // Final Score
+                html += `<td class="p-2 text-center font-semibold text-navy-900 bg-orange-50/40">${st.final}</td>`;
+
+                // Grand Total
+                const totalColor = st.grandTotal >= 50 ? 'text-emerald-700 font-extrabold bg-emerald-50/50' : 'text-red-600 font-bold bg-red-50/50';
+                html += `<td class="p-2 text-center ${totalColor}">${st.grandTotal}</td>`;
+
+                // Grade Badge
+                let gradeBadgeColor = 'bg-slate-100 text-slate-700';
+                if (st.grade === '4' || st.grade === '3.5') gradeBadgeColor = 'bg-emerald-100 text-emerald-800 font-bold';
+                else if (st.grade === '3' || st.grade === '2.5') gradeBadgeColor = 'bg-blue-100 text-blue-800 font-bold';
+                else if (st.grade === '2' || st.grade === '1.5') gradeBadgeColor = 'bg-amber-100 text-amber-800 font-bold';
+                else if (st.grade === '1') gradeBadgeColor = 'bg-orange-100 text-orange-800 font-bold';
+                else if (st.grade === '0') gradeBadgeColor = 'bg-red-100 text-red-800 font-bold';
+
+                html += `<td class="p-2 text-center"><span class="px-2 py-0.5 rounded-md text-[11px] ${gradeBadgeColor}">เกรด ${st.grade}</span></td>`;
+
+                html += `</tr>`;
+            });
+
+            tableBody.innerHTML = html;
+        }
+
+        // Render Chart Visualizations
+        function renderCharts() {
+            const filtered = getFilteredData();
+
+            // 1. Grade Chart Data
+            const gradeCounts = { '4': 0, '3.5': 0, '3': 0, '2.5': 0, '2': 0, '1.5': 0, '1': 0, '0': 0 };
+            filtered.forEach(s => {
+                if (gradeCounts[s.grade] !== undefined) gradeCounts[s.grade]++;
+            });
+
+            const ctxGrade = document.getElementById('gradeChart').getContext('2d');
+            if (gradeChartInstance) gradeChartInstance.destroy();
+
+            gradeChartInstance = new Chart(ctxGrade, {
+                type: 'doughnut',
+                data: {
+                    labels: ['เกรด 4', 'เกรด 3.5', 'เกรด 3', 'เกรด 2.5', 'เกรด 2', 'เกรด 1.5', 'เกรด 1', 'เกรด 0'],
+                    datasets: [{
+                        data: Object.values(gradeCounts),
+                        backgroundColor: [
+                            '#059669', '#10b981', '#3b82f6', '#60a5fa', 
+                            '#f59e0b', '#fbbf24', '#f97316', '#ef4444'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { font: { family: 'Prompt', size: 10 } } }
+                    },
+                    cutout: '65%'
+                }
+            });
+
+            // 2. Class Comparison Chart Data
+            const classAvgs = CLASSES.map(cName => {
+                const classStudents = allStudentsData.filter(s => s.className === cName);
+                if (classStudents.length === 0) return 0;
+                const sum = classStudents.reduce((a, b) => a + b.grandTotal, 0);
+                return Math.round((sum / classStudents.length) * 10) / 10;
+            });
+
+            const ctxClass = document.getElementById('classCompareChart').getContext('2d');
+            if (classCompareChartInstance) classCompareChartInstance.destroy();
+
+            classCompareChartInstance = new Chart(ctxClass, {
+                type: 'bar',
+                data: {
+                    labels: ['มัธยมศึกษาปีที่ 5/1', 'มัธยมศึกษาปีที่ 5/2', 'มัธยมศึกษาปีที่ 5/3'],
+                    datasets: [{
+                        label: 'คะแนนเฉลี่ยรวม (100 คะแนน)',
+                        data: classAvgs,
+                        backgroundColor: ['#1e3a8a', '#3b82f6', '#f97316'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { font: { family: 'Prompt', size: 10 } } },
+                        x: { ticks: { font: { family: 'Prompt', size: 11 } } }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // Tab Switching
+        function switchClass(className) {
+            currentClassFilter = className;
+            
+            // Update active styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-navy-600', 'text-white', 'shadow-sm');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+
+            const activeBtn = document.getElementById(`tab-${className}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-navy-600', 'text-white', 'shadow-sm');
+                activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+            }
+
+            renderDashboard();
+        }
+
+        // Search & Filter Trigger
+        function applyFilters() {
+            renderDashboard();
+        }
+
+        // Toggle Columns Visibility
+        function toggleColumnsView() {
+            const mode = document.getElementById('columnViewSelect').value;
+            const preCols = document.querySelectorAll('.col-pre, .col-group-pre');
+            const postCols = document.querySelectorAll('.col-post, .col-group-post');
+
+            if (mode === 'all') {
+                preCols.forEach(el => el.style.display = '');
+                postCols.forEach(el => el.style.display = '');
+            } else if (mode === 'summary') {
+                preCols.forEach(el => el.style.display = 'none');
+                postCols.forEach(el => el.style.display = 'none');
+            } else if (mode === 'pre_mid') {
+                preCols.forEach(el => el.style.display = '');
+                postCols.forEach(el => el.style.display = 'none');
+            } else if (mode === 'post_mid') {
+                preCols.forEach(el => el.style.display = 'none');
+                postCols.forEach(el => el.style.display = '');
+            }
+        }
+
+        // Toggle Visual Analytics Section
+        function toggleAnalyticsView() {
+            const section = document.getElementById('analyticsSection');
+            section.classList.toggle('hidden');
+        }
+
+        // Student Detail Modal Logic
+        function openStudentModal(studentCode) {
+            const student = allStudentsData.find(s => s.code === studentCode);
+            if (!student) return;
+
+            document.getElementById('modalClass').innerText = `ชั้น ม.${student.className}`;
+            document.getElementById('modalName').innerText = `${student.title}${student.fullName}`;
+            document.getElementById('modalSubTitle').innerText = `รหัสนักเรียน: ${student.code} | ชื่อเล่น: ${student.nickname || 'ไม่ได้ระบุ'}`;
+
+            document.getElementById('modalPreTotal').innerText = `${student.preTotal} / 30`;
+            document.getElementById('modalPostTotal').innerText = `${student.postTotal} / 30`;
+            document.getElementById('modalGrandTotal').innerText = `${student.grandTotal} / 100`;
+            document.getElementById('modalGrade').innerText = `เกรด: ${student.grade}`;
+
+            // Build Work Checklist
+            const workList = document.getElementById('modalWorkList');
+            let workHtml = '';
+
+            scoreHeaders.forEach((header, idx) => {
+                const score = student.scores[idx] || 0;
+                const isDone = score > 0;
+                
+                workHtml += `
+                    <div class="flex items-center justify-between p-2 rounded-lg ${isDone ? 'bg-emerald-50/60 text-slate-700' : 'bg-red-50 text-red-700'}">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid ${isDone ? 'fa-circle-check text-emerald-500' : 'fa-circle-xmark text-red-500'}"></i>
+                            <span>${header}</span>
+                        </span>
+                        <span class="font-bold">${score} คะแนน</span>
+                    </div>
+                `;
+            });
+
+            // Midterm & Final Rows
+            workHtml += `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-orange-50 text-orange-900 font-semibold border-t border-orange-200/60 mt-2">
+                    <span><i class="fa-solid fa-file-pen mr-1"></i>สอบกลางภาค</span>
+                    <span>${student.mid} / 20 คะแนน</span>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg bg-orange-50 text-orange-900 font-semibold">
+                    <span><i class="fa-solid fa-graduation-cap mr-1"></i>สอบปลายภาค</span>
+                    <span>${student.final} / 30 คะแนน</span>
+                </div>
+            `;
+
+            workList.innerHTML = workHtml;
+            document.getElementById('studentModal').classList.remove('hidden');
+        }
+
+        function closeStudentModal() {
+            document.getElementById('studentModal').classList.add('hidden');
+        }
+
+        // Export Filtered Data to CSV File
+        function exportCSV() {
+            const data = getFilteredData();
+            if (data.length === 0) {
+                alert('ไม่พบข้อมูลสำหรับส่งออก CSV');
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // UTF-8 BOM for Thai language support in Excel
+            csvContent += "ห้อง,ลำดับ,รหัส,คำนำหน้า,ชื่อ-นามสกุล,ชื่อเล่น," + scoreHeaders.join(",") + ",รวมก่อนกลางภาค,รวมหลังกลางภาค,กลางภาค,ปลายภาค,รวมคะแนน,เกรด\n";
+
+            data.forEach(s => {
+                const row = [
+                    `"ม.${s.className}"`,
+                    `"${s.no}"`,
+                    `"${s.code}"`,
+                    `"${s.title}"`,
+                    `"${s.fullName}"`,
+                    `"${s.nickname}"`,
+                    ...s.scores,
+                    s.preTotal,
+                    s.postTotal,
+                    s.mid,
+                    s.final,
+                    s.grandTotal,
+                    `"${s.grade}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `รายงานคะแนน_วิชาเคมี4_ม5_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
